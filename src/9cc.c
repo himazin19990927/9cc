@@ -113,14 +113,15 @@ Token *tokenize(char *p) {
             continue;
         }
 
-        if (starts_with(p, "==")) {
+        if (starts_with(p, "==") || starts_with(p, "!=") ||
+            starts_with(p, "<=") || starts_with(p, ">=")) {
             cur = new_token(TK_RESERVED, cur, p, 2);
             p += 2;
             continue;
         }
 
-        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' ||
-            *p == ')' || *p == '<') {
+        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '<' ||
+            *p == '>' || *p == '(' || *p == ')') {
             cur = new_token(TK_RESERVED, cur, p++, 1);
             continue;
         }
@@ -219,6 +220,8 @@ Node *equality() {
     for (;;) {
         if (consume("==")) {
             node = new_node(ND_EQ, node, relational());
+        } else if (consume("!=")) {
+            node = new_node(ND_NE, node, relational());
         } else {
             return node;
         }
@@ -231,6 +234,12 @@ Node *relational() {
     for (;;) {
         if (consume("<")) {
             node = new_node(ND_LT, node, add());
+        } else if (consume("<=")) {
+            node = new_node(ND_LE, node, add());
+        } else if (consume(">")) {
+            node = new_node(ND_LT, add(), node);
+        } else if (consume(">=")) {
+            node = new_node(ND_LE, add(), node);
         } else {
             return node;
         }
@@ -378,6 +387,26 @@ void gen(Node *node) {
             printf("  cqo\n");
             printf("  idiv rdi\n");
             break;
+        case ND_EQ:
+            printf("  cmp rax, rdi\n");
+            printf("  sete al\n");
+            printf("  movzb rax, al\n");
+            break;
+        case ND_NE:
+            printf("  cmp rax, rdi\n");
+            printf("  setne al\n");
+            printf("  movzb rax, al\n");
+            break;
+        case ND_LT:
+            printf("  cmp rax, rdi\n");
+            printf("  setl al\n");
+            printf("  movzb rax, al\n");
+            break;
+        case ND_LE:
+            printf("  cmp rax, rdi\n");
+            printf("  setle al\n");
+            printf("  movzb rax, al\n");
+            break;
     }
 
     printf("  push rax\n");
@@ -392,24 +421,24 @@ int main(int argc, char **argv) {
     // トークナイズする
     user_input = argv[1];
     token = tokenize(user_input);
-    print_token(token);
+    // print_token(token);
 
     Node *node = expr();
-    print_node(node);
-    printf("\n");
+    // print_node(node);
+    // printf("\n");
 
-    // // アセンブリの前半部分を出力
-    // printf(".intel_syntax noprefix\n");
-    // printf(".globl main\n");
-    // printf("main:\n");
+    // アセンブリの前半部分を出力
+    printf(".intel_syntax noprefix\n");
+    printf(".globl main\n");
+    printf("main:\n");
 
-    // // 抽象構文木を下りながらコード生成
-    // gen(node);
+    // 抽象構文木を下りながらコード生成
+    gen(node);
 
-    // // スタックトップに式全体の値が残っているはずなので
-    // // それをRAXにロードして関数からの返り値とする
-    // printf("  pop rax\n");
-    // printf("  ret\n");
+    // スタックトップに式全体の値が残っているはずなので
+    // それをRAXにロードして関数からの返り値とする
+    printf("  pop rax\n");
+    printf("  ret\n");
 
     return 0;
 }
