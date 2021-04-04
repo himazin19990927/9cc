@@ -98,6 +98,8 @@ Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
     return tok;
 }
 
+bool starts_with(char *p, char *q) { return memcmp(p, q, strlen(q)) == 0; }
+
 // 入力文字列pをトークナイズしてそれを返す
 Token *tokenize(char *p) {
     Token head;
@@ -108,19 +110,17 @@ Token *tokenize(char *p) {
         // 空白文字をスキップ
         if (isspace(*p)) {
             p++;
-            continue; 
+            continue;
         }
 
-        if (strncmp(p, "==", 2) == 0) {
-            cur = new_token(TK_RESERVED, cur, p, 2); 
-            p++;
-            
-            p++;
+        if (starts_with(p, "==")) {
+            cur = new_token(TK_RESERVED, cur, p, 2);
+            p += 2;
             continue;
         }
 
         if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' ||
-            *p == ')') {
+            *p == ')' || *p == '<') {
             cur = new_token(TK_RESERVED, cur, p++, 1);
             continue;
         }
@@ -149,8 +149,7 @@ void print_token(const Token *head) {
                 strncpy(str, current->str, current->len);
                 printf("%s", str);
                 free(str);
-            } 
-            break;
+            } break;
             case TK_NUM:
                 printf("TK_NUM: ");
                 printf("%d", current->val);
@@ -163,21 +162,6 @@ void print_token(const Token *head) {
     }
 }
 
-// typedef enum {
-//     TK_RESERVED,  // 記号
-//     TK_NUM,       // 整数トークン
-//     TK_EOF,       // 入力の終わりを表すトークン
-// } TokenKind;
-
-// typedef struct Token Token;
-// struct Token {
-//     TokenKind kind;  // トークンの型
-//     Token *next;     // 次の入力トークン
-//     int val;         // kindがTK_NUMの場合、その数値
-//     char *str;       // トークン文字列
-//     int len;         // トークンの長さ
-// };
-
 // 構文解析
 
 typedef enum {
@@ -185,6 +169,10 @@ typedef enum {
     ND_SUB,  // -
     ND_MUL,  // *
     ND_DIV,  // /
+    ND_EQ,   // ==
+    ND_NE,   // !=
+    ND_LT,   // <
+    ND_LE,   // <=
     ND_NUM,  // 整数
 } NodeKind;
 
@@ -213,12 +201,45 @@ Node *new_node_num(int val) {
 }
 
 Node *expr();
+Node *equality();
+Node *relational();
+Node *add();
 Node *mul();
 Node *unary();
 Node *primary();
 
 Node *expr() {
+    Node *node = equality();
+    return node;
+}
+
+Node *equality() {
+    Node *node = relational();
+
+    for (;;) {
+        if (consume("==")) {
+            node = new_node(ND_EQ, node, relational());
+        } else {
+            return node;
+        }
+    }
+}
+
+Node *relational() {
+    Node *node = add();
+
+    for (;;) {
+        if (consume("<")) {
+            node = new_node(ND_LT, node, add());
+        } else {
+            return node;
+        }
+    }
+}
+
+Node *add() {
     Node *node = mul();
+
     for (;;) {
         if (consume("+")) {
             node = new_node(ND_ADD, node, mul());
@@ -298,6 +319,34 @@ void print_node(Node *root) {
             print_node(root->rhs);
             printf(")");
             break;
+        case ND_EQ:
+            printf("(");
+            print_node(root->lhs);
+            printf("==");
+            print_node(root->rhs);
+            printf(")");
+            break;
+        case ND_NE:
+            printf("(");
+            print_node(root->lhs);
+            printf("!=");
+            print_node(root->rhs);
+            printf(")");
+            break;
+        case ND_LT:
+            printf("(");
+            print_node(root->lhs);
+            printf("<");
+            print_node(root->rhs);
+            printf(")");
+            break;
+        case ND_LE:
+            printf("(");
+            print_node(root->lhs);
+            printf("<=");
+            print_node(root->rhs);
+            printf(")");
+            break;
         case ND_NUM:
             printf("%d", root->val);
             break;
@@ -345,7 +394,9 @@ int main(int argc, char **argv) {
     token = tokenize(user_input);
     print_token(token);
 
-    // Node *node = expr();
+    Node *node = expr();
+    print_node(node);
+    printf("\n");
 
     // // アセンブリの前半部分を出力
     // printf(".intel_syntax noprefix\n");
