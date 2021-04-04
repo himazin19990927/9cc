@@ -108,6 +108,14 @@ Token *tokenize(char *p) {
         // 空白文字をスキップ
         if (isspace(*p)) {
             p++;
+            continue; 
+        }
+
+        if (strncmp(p, "==", 2) == 0) {
+            cur = new_token(TK_RESERVED, cur, p, 2); 
+            p++;
+            
+            p++;
             continue;
         }
 
@@ -129,6 +137,46 @@ Token *tokenize(char *p) {
     new_token(TK_EOF, cur, p, 0);
     return head.next;
 }
+
+void print_token(const Token *head) {
+    Token *current = token;
+    while (current->kind != TK_EOF) {
+        switch (current->kind) {
+            case TK_RESERVED: {
+                printf("TK_RESERVED: ");
+
+                char *str = malloc(sizeof(char) * current->len);
+                strncpy(str, current->str, current->len);
+                printf("%s", str);
+                free(str);
+            } 
+            break;
+            case TK_NUM:
+                printf("TK_NUM: ");
+                printf("%d", current->val);
+                break;
+        }
+
+        printf(",\n");
+
+        current = current->next;
+    }
+}
+
+// typedef enum {
+//     TK_RESERVED,  // 記号
+//     TK_NUM,       // 整数トークン
+//     TK_EOF,       // 入力の終わりを表すトークン
+// } TokenKind;
+
+// typedef struct Token Token;
+// struct Token {
+//     TokenKind kind;  // トークンの型
+//     Token *next;     // 次の入力トークン
+//     int val;         // kindがTK_NUMの場合、その数値
+//     char *str;       // トークン文字列
+//     int len;         // トークンの長さ
+// };
 
 // 構文解析
 
@@ -295,20 +343,22 @@ int main(int argc, char **argv) {
     // トークナイズする
     user_input = argv[1];
     token = tokenize(user_input);
-    Node *node = expr();
+    print_token(token);
 
-    // アセンブリの前半部分を出力
-    printf(".intel_syntax noprefix\n");
-    printf(".globl main\n");
-    printf("main:\n");
+    // Node *node = expr();
 
-    // 抽象構文木を下りながらコード生成
-    gen(node);
+    // // アセンブリの前半部分を出力
+    // printf(".intel_syntax noprefix\n");
+    // printf(".globl main\n");
+    // printf("main:\n");
 
-    // スタックトップに式全体の値が残っているはずなので
-    // それをRAXにロードして関数からの返り値とする
-    printf("  pop rax\n");
-    printf("  ret\n");
+    // // 抽象構文木を下りながらコード生成
+    // gen(node);
+
+    // // スタックトップに式全体の値が残っているはずなので
+    // // それをRAXにロードして関数からの返り値とする
+    // printf("  pop rax\n");
+    // printf("  ret\n");
 
     return 0;
 }
