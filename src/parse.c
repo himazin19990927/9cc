@@ -6,6 +6,8 @@ Token *token;
 // 入力プログラム
 char *user_input;
 
+Node *code[100];
+
 // エラーを報告するための関数
 // printfと同じ引数を取る
 void error(char *fmt, ...) {
@@ -42,6 +44,18 @@ bool consume(char *op) {
     return true;
 }
 
+// 次のトークンが識別子のときには、トークンを1つ読み進めて
+// そのトークンを返す。それ以外の場合はNULLを返す。
+Token *consume_ident() {
+    if (token->kind != TK_IDENT) {
+        return NULL;
+    }
+
+    Token *tok = token;
+    token = token->next;
+    return tok;
+}
+
 // 次のトークンが期待している記号のときには、トークンを1つ読み進める。
 // それ以外の場合にはエラーを報告する。
 void expect(char *op) {
@@ -56,7 +70,7 @@ void expect(char *op) {
 // それ以外の場合にはエラーを報告する。
 int expect_number() {
     if (token->kind != TK_NUM) {
-        error_at(token->str, "数ではありません");
+        error_at(token->str, "TK_NUMではありません");
     }
 
     int val = token->val;
@@ -99,8 +113,13 @@ Token *tokenize(char *p) {
         }
 
         if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '<' ||
-            *p == '>' || *p == '(' || *p == ')') {
+            *p == '>' || *p == '(' || *p == ')' || *p == '=' || *p == ';') {
             cur = new_token(TK_RESERVED, cur, p++, 1);
+            continue;
+        }
+
+        if ('a' <= *p && *p <= 'z') {
+            cur = new_token(TK_IDENT, cur, p++, 1);
             continue;
         }
 
@@ -123,6 +142,15 @@ void print_token(const Token *head) {
         switch (current->kind) {
             case TK_RESERVED: {
                 printf("TK_RESERVED: ");
+
+                char *str = malloc(sizeof(char) * current->len);
+                strncpy(str, current->str, current->len);
+                printf("%s", str);
+                free(str);
+
+            } break;
+            case TK_IDENT: {
+                printf("TK_TOKEN: ");
 
                 char *str = malloc(sizeof(char) * current->len);
                 strncpy(str, current->str, current->len);
@@ -157,8 +185,28 @@ Node *new_node_num(int val) {
     return node;
 }
 
-Node *expr() {
+void program() {
+    int i = 0;
+    while (!at_eof()) {
+        code[i++] = stmt();
+    }
+    code[i] = NULL;
+}
+
+Node *stmt() {
+    Node *node = expr();
+    // printf("expect ; in stmt\n");
+    expect(";");
+    return node;
+}
+
+Node *expr() { return assign(); }
+
+Node *assign() {
     Node *node = equality();
+    if (consume("=")) {
+        node = new_node(ND_ASSIGN, node, assign());
+    }
     return node;
 }
 
@@ -238,7 +286,17 @@ Node *primary() {
     // 次のトークンが"("なら、"(" expr ")"のはず
     if (consume("(")) {
         Node *node = expr();
+        // printf("expect ) in primary\n");
         expect(")");
+        return node;
+    }
+
+    Token *tok = consume_ident();
+    if (tok) {
+        // printf("true");
+        Node *node = calloc(1, sizeof(Node));
+        node->kind = ND_LVAR;
+        node->offset = (tok->str[0] - 'a' + 1) * 8;
         return node;
     }
 
@@ -303,6 +361,17 @@ void print_node(Node *root) {
             printf("<=");
             print_node(root->rhs);
             printf(")");
+            break;
+
+        case ND_ASSIGN:
+            printf("(");
+            print_node(root->lhs);
+            printf("=");
+            print_node(root->rhs);
+            printf(")");
+            break;
+        case ND_LVAR:
+            printf("LVAR(offset = %d)", root->offset);
             break;
         case ND_NUM:
             printf("%d", root->val);
